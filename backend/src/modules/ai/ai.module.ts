@@ -17,6 +17,6 @@ import { ProductMatcherService } from './product-matcher.service';
     ProductMatcherService,
     AiService,
   ],
-  exports: [AiService, EmbeddingService],
+  exports: [AiService, EmbeddingService, OpenRouterService],
 })
 export class AiModule {}

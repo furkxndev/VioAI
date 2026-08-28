@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { PaginatedResponseDto } from '../../common/dto';
+import { VenueSetting } from '../../common/enums';
 import { CategoriesService } from '../categories/categories.service';
 import {
   CreateProductDto,
@@ -29,6 +30,16 @@ export interface AiCandidateFilter {
   city: string;
   categoryIds?: string[];
   tags?: string[];
+  maxPrice?: number;
+  limit?: number;
+}
+
+export interface ChatCandidateFilter {
+  city: string;
+  /** true ise yalnızca kapalı ve karma mekânlar döner (yağmurlu gün). */
+  requiresIndoor?: boolean;
+  /** Verilirse yaş sınırı bu değerin üstünde olan ürünler elenir. */
+  childAge?: number | null;
   maxPrice?: number;
   limit?: number;
 }
@@ -147,6 +158,43 @@ export class ProductsService {
       .orderBy('product.popularityScore', 'DESC')
       .addOrderBy('product.rating', 'DESC')
       .take(filter.limit ?? 60)
+      .getMany();
+  }
+
+  /**
+   * Sohbet sorgusu için aday ürünler. Sert kısıtlar (şehir, kapalı alan, yaş) burada
+   * SQL ile uygulanır; yumuşak sıralama (ilgi alanı benzerliği) çağıran tarafta yapılır.
+   */
+  findChatCandidates(filter: ChatCandidateFilter): Promise<Product[]> {
+    const builder = this.productsRepository
+      .createQueryBuilder('product')
+      .leftJoinAndSelect('product.category', 'category')
+      .addSelect('product.embedding')
+      .where('product.isActive = true')
+      .andWhere('product.isAiRecommendable = true')
+      .andWhere('product.city ILIKE :city', { city: filter.city });
+
+    if (filter.requiresIndoor) {
+      // Karma mekânlar da yağmurda kısmen uygun olduğu için dahil edilir.
+      builder.andWhere('product.venueSetting IN (:...settings)', {
+        settings: [VenueSetting.INDOOR, VenueSetting.MIXED],
+      });
+    }
+
+    if (filter.childAge !== undefined && filter.childAge !== null) {
+      builder.andWhere('(product.minAge IS NULL OR product.minAge <= :childAge)', {
+        childAge: filter.childAge,
+      });
+    }
+
+    if (filter.maxPrice !== undefined) {
+      builder.andWhere('product.price <= :maxPrice', { maxPrice: filter.maxPrice });
+    }
+
+    return builder
+      .orderBy('product.popularityScore', 'DESC')
+      .addOrderBy('product.rating', 'DESC')
+      .take(filter.limit ?? 40)
       .getMany();
   }
 

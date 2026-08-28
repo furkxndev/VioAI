@@ -14,8 +14,10 @@ import { AiModule } from './modules/ai/ai.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { ChatModule } from './modules/chat/chat.module';
 import { ProductsModule } from './modules/products/products.module';
 import { RouteStopsModule } from './modules/route-stops/route-stops.module';
+import { WeatherModule } from './modules/weather/weather.module';
 import { RoutesModule } from './modules/routes/routes.module';
 import { UsersModule } from './modules/users/users.module';
 
@@ -36,6 +38,8 @@ import { UsersModule } from './modules/users/users.module';
     CategoriesModule,
     ProductsModule,
     AiModule,
+    WeatherModule,
+    ChatModule,
     RoutesModule,
     RouteStopsModule,
     AdminModule,

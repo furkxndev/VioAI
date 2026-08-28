@@ -19,6 +19,7 @@ VioAI/
 | Frontend | React 19, TypeScript (strict), Vite, Tailwind CSS v4, TanStack Query, React Router, React Hook Form + Zod, Leaflet, Framer Motion |
 | Backend | NestJS 11, TypeScript (strict), TypeORM, PostgreSQL 17, JWT + API Key auth, Swagger, Throttler |
 | AI | OpenRouter Chat Completions API · yerel gömme modeli (transformers.js) |
+| Dış veri | Open-Meteo hava tahmini (ücretsiz, anahtarsız) |
 | Paket yöneticisi | **Bun** (npm/yarn/pnpm kullanılmaz) |
 
 ## Hızlı başlangıç
@@ -39,6 +40,7 @@ bun install
 bun run migration:run
 bun run seed                  # gerçek Viofun kataloğu (24 kategori, 199 ürün)
 bun run embed                 # anlamsal eşleştirme için gömme vektörleri (~8 sn, anahtar gerekmez)
+bun run classify              # kapalı/açık alan ve yaş sınırı sınıflandırması (sohbet için, tek seferlik)
 bun run start:dev
 ```
 
@@ -106,6 +108,19 @@ Yönetici, üstteki **Yönetim** menüsünden (mobilde profil menüsünden) pane
 
    Model (`Xenova/paraphrase-multilingual-MiniLM-L12-v2`, 384 boyut) süreç içinde çalışır: **API anahtarı gerekmez, dışarıya istek gitmez.** Vektörler `bun run embed` ile üretilip `products.embedding` kolonunda saklanır. Vektör yoksa veya `EMBEDDING_ENABLED=false` ise sistem tamamen kelime örtüşmesine geri döner — anlamsal katman isteğe bağlıdır.
 3. **Yerleştirme** — Seçilen ürün, en yakın durağın hemen ardına, o durağın bitiş saatine geçiş payı eklenerek yerleştirilir. Kullanıcıya ürünün **neden önerildiği** açıklanır ve kullanıcı ürünü rotadan çıkarabilir veya yeni ürün ekleyebilir.
+
+## Sohbet (chat) nasıl çalışır?
+
+`POST /api/v1/chat` ucu, serbest metinli bir soruyu alıp katalogdan cevaplar. Örnek: *"yarın hava yağmurlu, 3 yaşındaki çocuğumla Antalya'da gidebileceğim yerleri listele."*
+
+1. **Anlama** — Soru bir LLM çağrısıyla yapılandırılmış kısıtlara çevrilir: şehir, kapalı mekân gerekiyor mu, gruptaki en küçük çocuğun yaşı, bütçe, ilgi alanları ve tarih. Model burada cevap yazmaz, yalnızca ayrıştırır. Çıkarılan filtre yanıtta da döner, yani sistemin soruyu nasıl anladığı şeffaftır.
+2. **Hava** — Kullanıcı havayı kendisi söylemişse ("yağmurlu") o kullanılır. Sadece tarih vermişse Open-Meteo'dan tahmin alınır; yağmur, kar veya fırtına çıkarsa kapalı mekân filtresi otomatik açılır. Servise ulaşılamazsa akış hava bilgisi olmadan devam eder.
+3. **Getirme** — Sert kısıtlar SQL'de uygulanır: şehir, `venueSetting IN (indoor, mixed)`, `minAge IS NULL OR minAge <= çocuğun yaşı`, fiyat. Kalan adaylar, kullanıcının ilgi ifadelerine anlamsal yakınlığa göre sıralanır.
+4. **Cevap** — Bulunan ürünler ikinci bir LLM çağrısına bağlam olarak verilir. Modele **yalnızca bu listeden** öneri yapması, liste boşsa dürüstçe "bulamadım" demesi ve her öneride yaş sınırını belirtmesi söylenir.
+
+Sert kısıtların anlamsal aramaya bırakılmamasının nedeni, gömme vektörlerinin olumsuzluğu ayırt edememesidir: *"10 yaş altı çocuklar için uygun değildir"* cümlesi *"3 yaşındaki çocuğum"* sorusuna anlamca **yakın** çıkar. Bu yüzden yaş ve mekân kısıtları SQL'de, ilgi alanı benzerliği ise gömme katmanında değerlendirilir.
+
+Ürün özellikleri (`venueSetting`, `minAge`) katalogda hazır gelmediği için `bun run classify` ile bir kez üretilir. Her kayıtta bilginin **açıklamada yazılı mı yoksa çıkarım mı** olduğu (`attributeSource`) ve neye dayandığı (`attributeEvidence`) saklanır.
 
 ## Dokümantasyon
 
