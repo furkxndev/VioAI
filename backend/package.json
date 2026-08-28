@@ -18,7 +18,8 @@
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
     "seed": "ts-node -r tsconfig-paths/register src/database/seeds/seed.ts",
     "embed": "ts-node -r tsconfig-paths/register src/database/seeds/embed-products.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "classify": "ts-node -r tsconfig-paths/register src/database/seeds/classify-products.ts"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",

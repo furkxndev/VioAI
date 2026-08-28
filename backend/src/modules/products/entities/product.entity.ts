@@ -5,6 +5,7 @@ import {
 } from '@nestjs/swagger';
 import { Exclude } from 'class-transformer';
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
+import { AttributeSource, VenueSetting } from '../../../common/enums';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Category } from '../../categories/entities/category.entity';
 
@@ -111,6 +112,36 @@ export class Product extends BaseEntity {
   @ApiProperty({ description: 'Sıralama için popülerlik puanı (0-100)' })
   @Column({ name: 'popularity_score', type: 'int', default: 0 })
   popularityScore: number;
+
+  @ApiPropertyOptional({
+    enum: VenueSetting,
+    description: 'Kapalı/açık alan. Yağmurlu gün sorgularında filtrelenir.',
+  })
+  @Column({ name: 'venue_setting', type: 'enum', enum: VenueSetting, nullable: true })
+  venueSetting: VenueSetting | null;
+
+  @ApiPropertyOptional({
+    description: 'Katılım için en düşük yaş. Null ise sınır belirlenememiştir.',
+    example: 10,
+  })
+  @Column({ name: 'min_age', type: 'int', nullable: true })
+  minAge: number | null;
+
+  @ApiPropertyOptional({
+    enum: AttributeSource,
+    description: 'venueSetting ve minAge bilgisinin kaynağı; unknown ise yaşa duyarlı sorgularda elenir.',
+  })
+  @Column({
+    name: 'attribute_source',
+    type: 'enum',
+    enum: AttributeSource,
+    default: AttributeSource.UNKNOWN,
+  })
+  attributeSource: AttributeSource;
+
+  @ApiPropertyOptional({ description: 'Sınıflandırmanın dayandığı açıklama parçası' })
+  @Column({ name: 'attribute_evidence', type: 'varchar', length: 400, nullable: true })
+  attributeEvidence: string | null;
 
   /**
    * Anlamsal eşleştirme için gömme vektörü. `bun run embed` ile üretilir.
