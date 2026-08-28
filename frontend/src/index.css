@@ -1,0 +1,97 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --color-brand-50: #f3f0ff;
+  --color-brand-100: #e7e0ff;
+  --color-brand-200: #cdc0ff;
+  --color-brand-300: #ad98ff;
+  --color-brand-400: #8b6dff;
+  --color-brand-500: #6d4aff;
+  --color-brand-600: #5a2ef0;
+  --color-brand-700: #4a23c7;
+  --color-brand-800: #3a1c9b;
+  --color-brand-900: #2b1570;
+
+  --color-accent-100: #ffe9e2;
+  --color-accent-300: #ffb59f;
+  --color-accent-500: #ff6b4a;
+  --color-accent-600: #ec4a26;
+
+  --color-ink-50: #f7f7fb;
+  --color-ink-100: #eeeef5;
+  --color-ink-200: #dedee9;
+  --color-ink-300: #c2c2d4;
+  --color-ink-400: #8e8ea8;
+  --color-ink-500: #67677f;
+  --color-ink-600: #4c4c61;
+  --color-ink-700: #383848;
+  --color-ink-800: #23232f;
+  --color-ink-900: #12121a;
+
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.75rem;
+
+  --shadow-soft: 0 1px 2px rgb(18 18 26 / 0.04), 0 8px 24px -12px rgb(18 18 26 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(18 18 26 / 0.04), 0 18px 40px -18px rgb(18 18 26 / 0.24);
+  --shadow-glow: 0 18px 48px -20px rgb(109 74 255 / 0.55);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-ink-50 text-ink-800 font-sans antialiased;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-500;
+  }
+
+  ::selection {
+    @apply bg-brand-200 text-ink-900;
+  }
+}
+
+@layer components {
+  .surface {
+    @apply rounded-2xl border border-ink-200/70 bg-white shadow-soft;
+  }
+
+  .gradient-brand {
+    background-image: linear-gradient(135deg, var(--color-brand-600) 0%, var(--color-brand-400) 55%, #38bdf8 100%);
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(120deg, var(--color-brand-600), var(--color-accent-500));
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+}
+
+.leaflet-container {
+  font-family: var(--font-sans);
+  background: var(--color-ink-100);
+}
+
+.leaflet-control-attribution {
+  font-size: 10px;
+  background: rgb(255 255 255 / 0.75);
+}
