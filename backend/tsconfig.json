@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "types": ["node", "bun"],
     "module": "commonjs",
     "declaration": false,
     "removeComments": true,

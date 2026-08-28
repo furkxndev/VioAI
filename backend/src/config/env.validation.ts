@@ -46,6 +46,14 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   OPENROUTER_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  EMBEDDING_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  EMBEDDING_MODEL?: string;
 }
 
 export const validateEnv = (config: Record<string, unknown>): Record<string, unknown> => {

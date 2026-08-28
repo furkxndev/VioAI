@@ -18,7 +18,7 @@ VioAI/
 | --- | --- |
 | Frontend | React 19, TypeScript (strict), Vite, Tailwind CSS v4, TanStack Query, React Router, React Hook Form + Zod, Leaflet, Framer Motion |
 | Backend | NestJS 11, TypeScript (strict), TypeORM, PostgreSQL 17, JWT + API Key auth, Swagger, Throttler |
-| AI | OpenRouter Chat Completions API |
+| AI | OpenRouter Chat Completions API · yerel gömme modeli (transformers.js) |
 | Paket yöneticisi | **Bun** (npm/yarn/pnpm kullanılmaz) |
 
 ## Hızlı başlangıç
@@ -38,6 +38,7 @@ cp .env.example .env          # JWT secret'larını ve OPENROUTER_API_KEY'i dold
 bun install
 bun run migration:run
 bun run seed                  # gerçek Viofun kataloğu (24 kategori, 199 ürün)
+bun run embed                 # anlamsal eşleştirme için gömme vektörleri (~8 sn, anahtar gerekmez)
 bun run start:dev
 ```
 
@@ -95,6 +96,15 @@ Yönetici, üstteki **Yönetim** menüsünden (mobilde profil menüsünden) pane
    | Puan ve popülerlik | 5 |
 
    Skoru eşiğin altında kalan, bütçeyi aşan veya 15 km'den uzak ürünler elenir. Kalanlardan kategori ve gün çeşitliliği gözetilerek **en fazla 2** ürün seçilir.
+
+   **İlgi alanı sinyali anlamsal olarak da hesaplanır.** Kelime örtüşmesi yalnızca birebir eşleşmeleri yakalar; kullanıcı "el işi" yazdığında "Mozaik Cam Lamba Atölyesi" bulunamaz. Bu yüzden her ürün için yerel bir gömme (embedding) modeliyle bir vektör üretilir ve kullanıcının ilgi alanlarıyla kosinüs benzerliği hesaplanır. İki sinyalin **büyüğü** alınır, yani mevcut eşleşmelerin skoru düşmez, yalnızca kaçırılanlar yakalanır.
+
+   | | "el işi" sorgusu (Antalya) |
+   | --- | --- |
+   | Yalnızca kelime örtüşmesi | 2 alakasız sonuç (Kum Heykel Müzesi, At Safari) |
+   | Anlamsal eşleştirme açık | 5 el işi atölyesi (cam boyama, mozaik lamba, Türk kahvesi…) |
+
+   Model (`Xenova/paraphrase-multilingual-MiniLM-L12-v2`, 384 boyut) süreç içinde çalışır: **API anahtarı gerekmez, dışarıya istek gitmez.** Vektörler `bun run embed` ile üretilip `products.embedding` kolonunda saklanır. Vektör yoksa veya `EMBEDDING_ENABLED=false` ise sistem tamamen kelime örtüşmesine geri döner — anlamsal katman isteğe bağlıdır.
 3. **Yerleştirme** — Seçilen ürün, en yakın durağın hemen ardına, o durağın bitiş saatine geçiş payı eklenerek yerleştirilir. Kullanıcıya ürünün **neden önerildiği** açıklanır ve kullanıcı ürünü rotadan çıkarabilir veya yeni ürün ekleyebilir.
 
 ## Dokümantasyon

@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { haversineDistanceKm, slugify } from '../../common/utils';
 import type { Product } from '../products/entities/product.entity';
-import type { GeneratedItinerary, GeneratedStop } from './interfaces/itinerary.interface';
+import { cosineSimilarity } from './embedding.service';
+import type {
+  GeneratedItinerary,
+  GeneratedStop,
+} from './interfaces/itinerary.interface';
 
 export interface MatchContext {
   interests: string[];
@@ -9,6 +13,11 @@ export interface MatchContext {
   currency: string;
   travelers: number;
   spentEstimate: number;
+  /**
+   * Kullanıcının ilgi alanlarının gömme vektörü (AiService tarafından hesaplanır).
+   * Yoksa skorlama tamamen kelime örtüşmesiyle yapılır — servis eşzamanlı ve saf kalır.
+   */
+  interestEmbedding?: number[] | null;
 }
 
 export interface ProductMatch {
@@ -38,6 +47,14 @@ const IDEAL_DISTANCE_KM = 1;
 const DEFAULT_MIN_SCORE = 40;
 const DEFAULT_MAX_MATCHES = 2;
 
+/**
+ * Kosinüs benzerliğini 0-1 aralığına çeviren eşikler.
+ * Katalog üzerinde ölçüldü: alakasız ürünler ~0.00, alakalı ürünler 0.30-0.62 bandında.
+ * Bu yüzden 0.20 altı sıfır, 0.55 üstü tam puan sayılır.
+ */
+const SEMANTIC_FLOOR = 0.2;
+const SEMANTIC_CEILING = 0.55;
+
 export interface MatchOptions {
   minScore?: number;
   maxMatches?: number;
@@ -62,13 +79,26 @@ export class ProductMatcherService {
 
     const interestTokens = this.tokenize(context.interests);
     const themeTokens = this.tokenize(
-      itinerary.days.flatMap((day) => [day.theme, ...day.stops.map((stop) => stop.category)]),
+      itinerary.days.flatMap((day) => [
+        day.theme,
+        ...day.stops.map((stop) => stop.category),
+      ]),
     );
     const remainingBudget = Math.max(context.budget - context.spentEstimate, 0);
 
     const scored = candidates
-      .map((product) => this.score(product, itinerary, { interestTokens, themeTokens, remainingBudget, context }))
-      .filter((candidate): candidate is ScoredCandidate => candidate !== null && candidate.score >= minScore)
+      .map((product) =>
+        this.score(product, itinerary, {
+          interestTokens,
+          themeTokens,
+          remainingBudget,
+          context,
+        }),
+      )
+      .filter(
+        (candidate): candidate is ScoredCandidate =>
+          candidate !== null && candidate.score >= minScore,
+      )
       .sort((a, b) => b.score - a.score);
 
     return this.pickDiverse(scored, maxMatches, enforceDiversity);
@@ -93,21 +123,43 @@ export class ProductMatcherService {
     const comparableBudget = product.currency === params.context.currency;
     const totalPrice = product.price * params.context.travelers;
 
-    if (comparableBudget && params.remainingBudget > 0 && totalPrice > params.remainingBudget) {
+    if (
+      comparableBudget &&
+      params.remainingBudget > 0 &&
+      totalPrice > params.remainingBudget
+    ) {
       return null;
     }
 
-    const productTokens = this.tokenize([product.name, product.category?.name ?? '', ...product.tags]);
+    const productTokens = this.tokenize([
+      product.name,
+      product.category?.name ?? '',
+      ...product.tags,
+    ]);
 
     const proximityRatio = this.clamp01(
-      (MAX_DISTANCE_KM - Math.max(anchor.distanceKm - IDEAL_DISTANCE_KM, 0)) / MAX_DISTANCE_KM,
+      (MAX_DISTANCE_KM - Math.max(anchor.distanceKm - IDEAL_DISTANCE_KM, 0)) /
+        MAX_DISTANCE_KM,
     );
-    const interestRatio = this.overlapRatio(productTokens, params.interestTokens);
+    // Anlamsal benzerlik yalnızca kelime örtüşmesinin kaçırdıklarını yakalar:
+    // max() aldığımız için mevcut eşleşmelerin skoru asla düşmez, sadece yükselebilir.
+    const tokenInterestRatio = this.overlapRatio(
+      productTokens,
+      params.interestTokens,
+    );
+    const semanticRatio = this.semanticRatio(
+      product,
+      params.context.interestEmbedding,
+    );
+    const interestRatio = Math.max(tokenInterestRatio, semanticRatio);
     const themeRatio = this.overlapRatio(productTokens, params.themeTokens);
     const qualityRatio =
-      this.clamp01(product.rating / 5) * 0.6 + this.clamp01(product.popularityScore / 100) * 0.4;
+      this.clamp01(product.rating / 5) * 0.6 +
+      this.clamp01(product.popularityScore / 100) * 0.4;
     const budgetRatio =
-      params.remainingBudget <= 0 ? 0 : this.clamp01(1 - totalPrice / params.remainingBudget);
+      params.remainingBudget <= 0
+        ? 0
+        : this.clamp01(1 - totalPrice / params.remainingBudget);
 
     // Ürünün para birimi rotanınkinden farklıysa bütçe sinyali karşılaştırılamaz;
     // ağırlığı toplamdan düşerek diğer sinyalleri orantılı olarak yeniden ölçekleriz.
@@ -116,7 +168,9 @@ export class ProductMatcherService {
       { weight: WEIGHTS.interest, ratio: interestRatio },
       { weight: WEIGHTS.theme, ratio: themeRatio },
       { weight: WEIGHTS.quality, ratio: qualityRatio },
-      ...(comparableBudget ? [{ weight: WEIGHTS.budget, ratio: budgetRatio }] : []),
+      ...(comparableBudget
+        ? [{ weight: WEIGHTS.budget, ratio: budgetRatio }]
+        : []),
     ];
 
     const totalWeight = components.reduce((sum, c) => sum + c.weight, 0);
@@ -139,6 +193,8 @@ export class ProductMatcherService {
         interestScore,
         themeScore,
         budgetScore,
+        // Eşleşme yalnızca anlamsal benzerlikten geldiyse gerekçeyi ona göre yazarız.
+        semanticOnly: semanticRatio > tokenInterestRatio,
         interests: params.context.interests,
       }),
     };
@@ -147,8 +203,18 @@ export class ProductMatcherService {
   private findAnchor(
     product: Product,
     itinerary: GeneratedItinerary,
-  ): { dayNumber: number; stopIndex: number; stop: GeneratedStop; distanceKm: number } | null {
-    let best: { dayNumber: number; stopIndex: number; stop: GeneratedStop; distanceKm: number } | null = null;
+  ): {
+    dayNumber: number;
+    stopIndex: number;
+    stop: GeneratedStop;
+    distanceKm: number;
+  } | null {
+    let best: {
+      dayNumber: number;
+      stopIndex: number;
+      stop: GeneratedStop;
+      distanceKm: number;
+    } | null = null;
 
     itinerary.days.forEach((day) => {
       day.stops.forEach((stop, stopIndex) => {
@@ -172,7 +238,9 @@ export class ProductMatcherService {
     enforceDiversity: boolean,
   ): ProductMatch[] {
     if (!enforceDiversity) {
-      return scored.slice(0, maxMatches).map(({ categoryId: _categoryId, ...match }) => match);
+      return scored
+        .slice(0, maxMatches)
+        .map(({ categoryId: _categoryId, ...match }) => match);
     }
 
     const picked: ScoredCandidate[] = [];
@@ -191,7 +259,8 @@ export class ProductMatcherService {
 
     for (const candidate of scored) {
       if (picked.length >= maxMatches) break;
-      if (picked.some((item) => item.product.id === candidate.product.id)) continue;
+      if (picked.some((item) => item.product.id === candidate.product.id))
+        continue;
       if (usedCategories.has(candidate.categoryId)) continue;
 
       picked.push(candidate);
@@ -204,14 +273,24 @@ export class ProductMatcherService {
   private buildReason(
     product: Product,
     anchor: { stop: GeneratedStop; distanceKm: number; dayNumber: number },
-    signals: { interestScore: number; themeScore: number; budgetScore: number; interests: string[] },
+    signals: {
+      interestScore: number;
+      themeScore: number;
+      budgetScore: number;
+      semanticOnly: boolean;
+      interests: string[];
+    },
   ): string {
     const parts = [
       `${anchor.dayNumber}. gündeki "${anchor.stop.title}" durağına ${anchor.distanceKm.toFixed(1)} km mesafede`,
     ];
 
     if (signals.interestScore > 0 && signals.interests.length > 0) {
-      const productTokens = this.tokenize([product.name, product.category?.name ?? '', ...product.tags]);
+      const productTokens = this.tokenize([
+        product.name,
+        product.category?.name ?? '',
+        ...product.tags,
+      ]);
       const matched = signals.interests.filter((interest) =>
         slugify(interest)
           .split('-')
@@ -220,7 +299,9 @@ export class ProductMatcherService {
       parts.push(
         matched.length > 0
           ? `${matched.join(', ')} ilgi alanınızla örtüşüyor`
-          : 'ilgi alanlarınızla uyumlu',
+          : signals.semanticOnly
+            ? `${signals.interests.join(', ')} ilgi alanınızla anlamca yakın`
+            : 'ilgi alanlarınızla uyumlu',
       );
     }
 
@@ -233,6 +314,25 @@ export class ProductMatcherService {
     }
 
     return `${parts.join(', ')}.`;
+  }
+
+  /**
+   * Ürünün gömme vektörü ile kullanıcının ilgi alanı vektörü arasındaki benzerliği
+   * 0-1 aralığına çevirir. Vektörlerden biri yoksa 0 döner ve skorlama tamamen
+   * kelime örtüşmesiyle yapılır — yani gömme üretilmemişse sistem eskisi gibi çalışır.
+   */
+  private semanticRatio(
+    product: Product,
+    interestEmbedding?: number[] | null,
+  ): number {
+    if (!interestEmbedding?.length || !product.embedding?.length) {
+      return 0;
+    }
+
+    const benzerlik = cosineSimilarity(interestEmbedding, product.embedding);
+    return this.clamp01(
+      (benzerlik - SEMANTIC_FLOOR) / (SEMANTIC_CEILING - SEMANTIC_FLOOR),
+    );
   }
 
   private tokenize(values: string[]): Set<string> {

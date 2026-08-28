@@ -129,6 +129,8 @@ export class ProductsService {
     const builder = this.productsRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.category', 'category')
+      // Gömme vektörü entity'de select:false; anlamsal eşleştirme için burada açıkça istenir.
+      .addSelect('product.embedding')
       .where('product.isActive = true')
       .andWhere('product.isAiRecommendable = true')
       .andWhere('product.city ILIKE :city', { city: filter.city });

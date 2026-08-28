@@ -2,9 +2,18 @@ import { Injectable } from '@nestjs/common';
 import { centroid } from '../../common/utils';
 import { ProductsService } from '../products/products.service';
 import { AiStatusDto, ProductSuggestionDto, SuggestProductsDto } from './dto';
-import type { GeneratedItinerary, ItineraryRequest, ItineraryResult } from './interfaces/itinerary.interface';
+import { EmbeddingService } from './embedding.service';
+import type {
+  GeneratedItinerary,
+  ItineraryRequest,
+  ItineraryResult,
+} from './interfaces/itinerary.interface';
 import { ItineraryGeneratorService } from './itinerary-generator.service';
-import { MatchContext, ProductMatch, ProductMatcherService } from './product-matcher.service';
+import {
+  MatchContext,
+  ProductMatch,
+  ProductMatcherService,
+} from './product-matcher.service';
 import { OpenRouterService } from './openrouter.service';
 
 const SUGGESTION_MIN_SCORE = 20;
@@ -16,6 +25,7 @@ export class AiService {
     private readonly itineraryGenerator: ItineraryGeneratorService,
     private readonly productMatcher: ProductMatcherService,
     private readonly productsService: ProductsService,
+    private readonly embeddingService: EmbeddingService,
   ) {}
 
   getStatus(): AiStatusDto {
@@ -23,6 +33,9 @@ export class AiService {
       configured: this.openRouterService.isConfigured,
       model: this.openRouterService.model,
       provider: 'openrouter',
+      embeddingModel: this.embeddingService.model,
+      semanticMatching: this.embeddingService.isAvailable,
+      embeddingLoaded: this.embeddingService.isLoaded,
     };
   }
 
@@ -36,13 +49,33 @@ export class AiService {
     context: MatchContext,
   ): Promise<ProductMatch[]> {
     const candidates = await this.productsService.findAiCandidates({ city });
+    const interestEmbedding = await this.embedInterests(context.interests);
 
-    return this.productMatcher.match(itinerary, candidates, context);
+    return this.productMatcher.match(itinerary, candidates, {
+      ...context,
+      interestEmbedding,
+    });
   }
 
-  async suggestProducts(dto: SuggestProductsDto): Promise<ProductSuggestionDto[]> {
+  /**
+   * Kullanıcının ilgi alanlarını tek bir vektöre çevirir. Gömme kapalıysa veya
+   * model yüklenemediyse null döner; eşleştirme kelime örtüşmesiyle devam eder.
+   */
+  private embedInterests(interests: string[]): Promise<number[] | null> {
+    if (interests.length === 0) {
+      return Promise.resolve(null);
+    }
+
+    return this.embeddingService.embedOne(interests.join(', '));
+  }
+
+  async suggestProducts(
+    dto: SuggestProductsDto,
+  ): Promise<ProductSuggestionDto[]> {
     const travelers = dto.travelers ?? 1;
-    const candidates = await this.productsService.findAiCandidates({ city: dto.city });
+    const candidates = await this.productsService.findAiCandidates({
+      city: dto.city,
+    });
 
     if (candidates.length === 0) {
       return [];
@@ -51,7 +84,12 @@ export class AiService {
     const center =
       dto.latitude !== undefined && dto.longitude !== undefined
         ? { latitude: dto.latitude, longitude: dto.longitude }
-        : centroid(candidates.map((product) => ({ latitude: product.latitude, longitude: product.longitude })));
+        : centroid(
+            candidates.map((product) => ({
+              latitude: product.latitude,
+              longitude: product.longitude,
+            })),
+          );
 
     if (!center) {
       return [];
@@ -82,11 +120,23 @@ export class AiService {
       ],
     };
 
+    const interestEmbedding = await this.embedInterests(interests);
     const matches = this.productMatcher.match(
       pseudoItinerary,
       candidates,
-      { interests, budget: dto.budget ?? 0, currency: dto.currency ?? 'TRY', travelers, spentEstimate: 0 },
-      { minScore: SUGGESTION_MIN_SCORE, maxMatches: dto.limit ?? 6, enforceDiversity: false },
+      {
+        interests,
+        budget: dto.budget ?? 0,
+        currency: dto.currency ?? 'TRY',
+        travelers,
+        spentEstimate: 0,
+        interestEmbedding,
+      },
+      {
+        minScore: SUGGESTION_MIN_SCORE,
+        maxMatches: dto.limit ?? 6,
+        enforceDiversity: false,
+      },
     );
 
     return matches.map((match) => ({

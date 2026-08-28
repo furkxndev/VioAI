@@ -1,4 +1,9 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ApiHideProperty,
+  ApiProperty,
+  ApiPropertyOptional,
+} from '@nestjs/swagger';
+import { Exclude } from 'class-transformer';
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Category } from '../../categories/entities/category.entity';
@@ -19,15 +24,23 @@ export class Product extends BaseEntity {
   @Column({ name: 'category_id', type: 'uuid' })
   categoryId: string;
 
-  @ManyToOne(() => Category, (category) => category.products, { onDelete: 'RESTRICT', eager: true })
+  @ManyToOne(() => Category, (category) => category.products, {
+    onDelete: 'RESTRICT',
+    eager: true,
+  })
   @JoinColumn({ name: 'category_id' })
   category: Category;
 
   @ApiProperty({ example: 450 })
-  @Column({ type: 'numeric', precision: 12, scale: 2, transformer: {
-    to: (value: number) => value,
-    from: (value: string | null) => (value === null ? 0 : Number(value)),
-  } })
+  @Column({
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string | null) => (value === null ? 0 : Number(value)),
+    },
+  })
   price: number;
 
   @ApiProperty({ example: 'TRY' })
@@ -79,10 +92,16 @@ export class Product extends BaseEntity {
   isAiRecommendable: boolean;
 
   @ApiProperty({ example: 4.7 })
-  @Column({ type: 'numeric', precision: 3, scale: 2, default: 0, transformer: {
-    to: (value: number) => value,
-    from: (value: string | null) => (value === null ? 0 : Number(value)),
-  } })
+  @Column({
+    type: 'numeric',
+    precision: 3,
+    scale: 2,
+    default: 0,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string | null) => (value === null ? 0 : Number(value)),
+    },
+  })
   rating: number;
 
   @ApiProperty()
@@ -92,4 +111,25 @@ export class Product extends BaseEntity {
   @ApiProperty({ description: 'Sıralama için popülerlik puanı (0-100)' })
   @Column({ name: 'popularity_score', type: 'int', default: 0 })
   popularityScore: number;
+
+  /**
+   * Anlamsal eşleştirme için gömme vektörü. `bun run embed` ile üretilir.
+   * Null ise ürün kelime örtüşmesiyle skorlanır — sistem yine çalışır.
+   * API yanıtlarında gizlidir; 384 sayılık dizinin istemciye gitmesi anlamsız.
+   */
+  @ApiHideProperty()
+  @Exclude()
+  @Column({ type: 'real', array: true, nullable: true, select: false })
+  embedding: number[] | null;
+
+  @ApiHideProperty()
+  @Exclude()
+  @Column({
+    name: 'embedding_model',
+    type: 'varchar',
+    length: 120,
+    nullable: true,
+    select: false,
+  })
+  embeddingModel: string | null;
 }
