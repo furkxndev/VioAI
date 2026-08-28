@@ -6,6 +6,7 @@ import { FullPageSpinner } from '@/components/ui'
 import {
   ActivitiesPage,
   ActivityDetailPage,
+  ChatPage,
   GenerateRoutePage,
   HomePage,
   LoginPage,
@@ -43,6 +44,7 @@ export const AppRouter = () => (
       <Route path="aktiviteler/:id" element={<ActivityDetailPage />} />
 
       <Route element={<ProtectedRoute />}>
+        <Route path="asistan" element={<ChatPage />} />
         <Route path="rota-olustur" element={<GenerateRoutePage />} />
         <Route path="rotalarim" element={<MyRoutesPage />} />
         <Route path="rotalarim/:id" element={<RouteDetailPage />} />

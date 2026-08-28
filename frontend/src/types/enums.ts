@@ -35,6 +35,13 @@ export const StopType = {
 } as const
 export type StopType = (typeof StopType)[keyof typeof StopType]
 
+export const VenueSetting = {
+  INDOOR: 'indoor',
+  OUTDOOR: 'outdoor',
+  MIXED: 'mixed',
+} as const
+export type VenueSetting = (typeof VenueSetting)[keyof typeof VenueSetting]
+
 export const ApiKeyScope = {
   PRODUCTS_READ: 'products:read',
   PRODUCTS_WRITE: 'products:write',

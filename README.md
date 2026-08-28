@@ -111,7 +111,7 @@ Yönetici, üstteki **Yönetim** menüsünden (mobilde profil menüsünden) pane
 
 ## Sohbet (chat) nasıl çalışır?
 
-`POST /api/v1/chat` ucu, serbest metinli bir soruyu alıp katalogdan cevaplar. Örnek: *"yarın hava yağmurlu, 3 yaşındaki çocuğumla Antalya'da gidebileceğim yerleri listele."*
+Uygulamada **Asistan** sekmesi (`/asistan`, giriş gerekir) ve arkasında `POST /api/v1/chat` ucu, serbest metinli bir soruyu alıp katalogdan cevaplar. Örnek: *"yarın hava yağmurlu, 3 yaşındaki çocuğumla Antalya'da gidebileceğim yerleri listele."*
 
 1. **Anlama** — Soru bir LLM çağrısıyla yapılandırılmış kısıtlara çevrilir: şehir, kapalı mekân gerekiyor mu, gruptaki en küçük çocuğun yaşı, bütçe, ilgi alanları ve tarih. Model burada cevap yazmaz, yalnızca ayrıştırır. Çıkarılan filtre yanıtta da döner, yani sistemin soruyu nasıl anladığı şeffaftır.
 2. **Hava** — Kullanıcı havayı kendisi söylemişse ("yağmurlu") o kullanılır. Sadece tarih vermişse Open-Meteo'dan tahmin alınır; yağmur, kar veya fırtına çıkarsa kapalı mekân filtresi otomatik açılır. Servise ulaşılamazsa akış hava bilgisi olmadan devam eder.
@@ -119,6 +119,8 @@ Yönetici, üstteki **Yönetim** menüsünden (mobilde profil menüsünden) pane
 4. **Cevap** — Bulunan ürünler ikinci bir LLM çağrısına bağlam olarak verilir. Modele **yalnızca bu listeden** öneri yapması, liste boşsa dürüstçe "bulamadım" demesi ve her öneride yaş sınırını belirtmesi söylenir.
 
 Sert kısıtların anlamsal aramaya bırakılmamasının nedeni, gömme vektörlerinin olumsuzluğu ayırt edememesidir: *"10 yaş altı çocuklar için uygun değildir"* cümlesi *"3 yaşındaki çocuğum"* sorusuna anlamca **yakın** çıkar. Bu yüzden yaş ve mekân kısıtları SQL'de, ilgi alanı benzerliği ise gömme katmanında değerlendirilir.
+
+Sohbet ekranı, sistemin soruyu **nasıl anladığını** her cevabın üstünde rozetlerle gösterir (şehir, tarih, hava, kapalı mekân, çocuğun yaşı, ilgi alanları). Bir kısıt yanlış anlaşılmışsa kullanıcı bunu görüp sorusunu düzeltebilir.
 
 Ürün özellikleri (`venueSetting`, `minAge`) katalogda hazır gelmediği için `bun run classify` ile bir kez üretilir. Her kayıtta bilginin **açıklamada yazılı mı yoksa çıkarım mı** olduğu (`attributeSource`) ve neye dayandığı (`attributeEvidence`) saklanır.
 

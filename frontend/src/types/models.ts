@@ -1,4 +1,12 @@
-import type { ApiKeyScope, RouteStatus, StopType, TransportMode, TravelPace, UserRole } from './enums'
+import type {
+  ApiKeyScope,
+  RouteStatus,
+  StopType,
+  TransportMode,
+  TravelPace,
+  UserRole,
+  VenueSetting,
+} from './enums'
 
 export interface UserPreferences {
   homeCity?: string
@@ -153,6 +161,57 @@ export interface AiStatus {
   configured: boolean
   model: string
   provider: string
+  embeddingModel: string
+  semanticMatching: boolean
+  embeddingLoaded: boolean
+}
+
+/** Sohbet sorusundan çıkarılan arama kısıtları; sistemin soruyu nasıl anladığını gösterir. */
+export interface ChatFilters {
+  city: string | null
+  requiresIndoor: boolean
+  childAge: number | null
+  travelers: number | null
+  budget: number | null
+  currency: string | null
+  interests: string[]
+  date: string | null
+  statedWeather: string | null
+}
+
+export interface ChatWeather {
+  date: string
+  condition: 'clear' | 'cloudy' | 'fog' | 'rain' | 'snow' | 'storm'
+  isWet: boolean
+  temperatureMax: number | null
+  temperatureMin: number | null
+  precipitationProbability: number | null
+  description: string
+}
+
+export interface ChatSuggestion {
+  id: string
+  name: string
+  category: string | null
+  city: string
+  district: string | null
+  price: number
+  currency: string
+  rating: number
+  durationMinutes: number
+  venueSetting: VenueSetting | null
+  minAge: number | null
+  imageUrl: string | null
+  bookingUrl: string | null
+}
+
+export interface ChatAnswer {
+  answer: string
+  filters: ChatFilters
+  weather: ChatWeather | null
+  suggestions: ChatSuggestion[]
+  needsCity: boolean
+  generationMs: number
 }
 
 export interface AdminCategoryStat {

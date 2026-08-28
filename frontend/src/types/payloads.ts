@@ -139,3 +139,8 @@ export interface ApiKeyPayload {
   scopes: ApiKeyScope[]
   expiresAt?: string
 }
+
+export interface ChatQueryPayload {
+  message: string
+  city?: string
+}

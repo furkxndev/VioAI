@@ -1,5 +1,6 @@
 export * from './ActivitiesPage'
 export * from './ActivityDetailPage'
+export * from './ChatPage'
 export * from './GenerateRoutePage'
 export * from './HomePage'
 export * from './MyRoutesPage'
